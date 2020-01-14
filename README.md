@@ -1,4 +1,4 @@
-# go-docker-sample
+# go-sqlboiler-sample
 
 ## env
 Docker version 18.06.1-ce
