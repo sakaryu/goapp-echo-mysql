@@ -1,0 +1,22 @@
+version: '3'
+services:
+  app:
+    build:
+      context: .
+      dockerfile: ./docker/build/Dockerfile
+    depends_on:
+      - mysql
+    ports:
+      - 80:8080
+  mysql:
+    image: mysql:5.6
+    container_name: godockerDB
+    environment:
+      MYSQL_USER: root
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: sample_dev
+    volumes:
+      - ./tmp/docker/mysql:/var/lib/mysql:delegated
+    # command: mysqld --max_allowed_packet=16M --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci
+    ports:
+      - 3306:3306
