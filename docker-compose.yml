@@ -4,7 +4,6 @@ services:
     build:
       context: .
       dockerfile: ./docker/build/Dockerfile
-      target: build
     depends_on:
       - mysql
     ports:
@@ -13,12 +12,11 @@ services:
       - ./:/go/src
     command: realize start --run
   mysql:
-    image: mysql:5.6
-    container_name: godockerDB
+    image: mysql:5.7
     environment:
+      MYSQL_DATABASE: sample_dev
       MYSQL_USER: root
       MYSQL_ROOT_PASSWORD: password
-      MYSQL_DATABASE: sample_dev
     volumes:
       - ./tmp/docker/mysql:/var/lib/mysql:delegated
     ports:
