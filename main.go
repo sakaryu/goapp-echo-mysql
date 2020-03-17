@@ -1,26 +1,32 @@
 package main
 
 import (
-  "fmt"
   "net/http"
-  "github.com/labstack/echo"
-  "github.com/labstack/echo/middleware"
+  "github.com/labstack/echo/v4"
   "database/sql"
   _ "github.com/go-sql-driver/mysql"
+  "github.com/go-playground/validator/v10"
 )
 
+// User type
 type User struct {
-  ID int
-  Name string
-  Token string
+  ID int64 `json:"id"`
+  Name string `json:"name" validate:"required"`
+  Email string `json:"email" validate:"required,email"`
 }
 
-type Token struct {
-  Token string `json:"token"`
+// Validator type
+type Validator struct {
+  validator *validator.Validate
+}
+
+// Validate validate
+func (v *Validator) Validate(i interface{}) error {
+  return v.validator.Struct(i)
 }
 
 func main() {
-  db, err := sql.Open("mysql", "root:password@tcp(godockerDB)/sample_dev")
+  db, err := sql.Open("mysql", "root:password@tcp(mysql:3306)/sample_dev")
   if err != nil {
     panic(err)
   }
@@ -33,35 +39,14 @@ func main() {
   defer db.Close()
 
   e := echo.New()
-  e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: []string{"http://localhost:3000"},
-		AllowMethods: []string{http.MethodGet, http.MethodPut, http.MethodPost, http.MethodDelete},
-  }))
+  e.Validator = &Validator{validator: validator.New()}
+  e.Static("/", "static/")
 
-  e.GET("/api/login", func(c echo.Context) error {
-    var user User
-
-    user.ID = 1
-    user.Name = "test"
-    user.Token = "hotreload test"
-
-    return c.JSON(
-      http.StatusOK,
-      user,
-    )
-  })
-
-  e.POST("/api/login", func(c echo.Context) error {
-    db, err := sql.Open("mysql", "root:password@tcp(godockerDB)/sample_dev")
+  e.GET("/api/users", func(c echo.Context) error {
+    db, err := sql.Open("mysql", "root:password@tcp(mysql:3306)/sample_dev")
     if err != nil {
       panic(err)
     }
-
-    err = db.Ping()
-    if err != nil {
-      panic(err)
-    }
-
     defer db.Close()
 
     rows, err := db.Query("SELECT * FROM users")
@@ -70,73 +55,86 @@ func main() {
     }
     defer rows.Close()
 
-    var user User
-
-    var token Token
-
-    // for rows.Next() {
-    //   err := rows.Scan(&user.ID, &user.Name)
-    //   if err != nil {
-    //     panic(err.Error())
-    //   }
-    //   fmt.Println(user.ID, user.Name)
-    // }
-
-    user.ID = 0
-    user.Name = "aaa"
-    token.Token = "sample"
-
-    fmt.Println(token)
-    fmt.Println(user)
-
-    err = rows.Err()
-    if err != nil {
-      panic(err.Error())
-    }
-
-    return c.JSON(
-      http.StatusOK,
-      token,
-    )
-  })
-
-  e.GET("/api/me", func(c echo.Context) error {
-    db, err := sql.Open("mysql", "root:password@tcp(godockerDB)/sample_dev")
-    if err != nil {
-      panic(err)
-    }
-
-    err = db.Ping()
-    if err != nil {
-      panic(err)
-    }
-
-    defer db.Close()
-
-    rows, err := db.Query("SELECT * FROM users")
-    if err != nil {
-      panic(err.Error())
-    }
-    defer rows.Close()
-
+    var users []User
     var user User
 
     for rows.Next() {
-      err := rows.Scan(&user.ID, &user.Name)
+      err := rows.Scan(&user.ID, &user.Name, &user.Email)
       if err != nil {
         panic(err.Error())
       }
-      fmt.Println(user.ID, user.Name)
+      users = append(users, user)
     }
 
-    err = rows.Err()
+    return c.JSON(
+      http.StatusOK,
+      users,
+    )
+  })
+
+  e.GET("/api/users/:id", func(c echo.Context) error {
+    db, err := sql.Open("mysql", "root:password@tcp(mysql:3306)/sample_dev")
     if err != nil {
-      panic(err.Error())
+      panic(err)
+    }
+    defer db.Close()
+
+    var user User
+
+    row := db.QueryRow(`SELECT * FROM users WHERE id = ? LIMIT 1`, c.Param("id"))
+
+    err = row.Scan(&user.ID, &user.Name, &user.Email)
+    if err != nil {
+        c.Logger().Error("Select: ", err)
+        return c.String(
+          http.StatusBadRequest,
+          "Select: "+err.Error(),
+        )
     }
 
     return c.JSON(
       http.StatusOK,
       user,
+    )
+  })
+
+  e.POST("/api/users", func(c echo.Context) error {
+    db, err := sql.Open("mysql", "root:password@tcp(mysql:3306)/sample_dev")
+    if err != nil {
+      panic(err)
+    }
+    defer db.Close()
+
+    var user User
+
+		if err = c.Bind(&user); err != nil {
+      c.Logger().Error("Bind: ", err)
+      return c.String(
+        http.StatusBadRequest,
+        "Bind: "+err.Error(),
+      )
+		}
+
+		if err = c.Validate(&user); err != nil {
+      c.Logger().Error("Validate: ", err)
+      return c.String(
+        http.StatusBadRequest,
+        "Validate: "+err.Error(),
+      )
+		}
+
+    _, err = db.Exec(`INSERT INTO users(name, email) VALUES(?, ?)`, user.Name, user.Email)
+    if err != nil {
+      c.Logger().Error("Insert: ", err)
+      return c.String(
+        http.StatusBadRequest,
+        "Insert: "+err.Error(),
+      )
+    }
+
+    return c.JSON(
+      http.StatusCreated,
+      "",
     )
   })
   e.Logger.Fatal(e.Start(":8080"))
