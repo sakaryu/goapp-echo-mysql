@@ -1,4 +1,4 @@
-# goapp-mysql-sample
+# goapp-echo-mysql
 
 - [echo](https://github.com/labstack/echo)を利用
 - [database/sql](https://golang.org/pkg/database/sql)を利用
