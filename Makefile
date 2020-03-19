@@ -2,10 +2,6 @@
 build:
 	docker-compose build
 
-.PHONY: deps
-deps:
-	docker-compose run --rm app go build
-
 .PHONY: run
 run:
 	docker-compose up
